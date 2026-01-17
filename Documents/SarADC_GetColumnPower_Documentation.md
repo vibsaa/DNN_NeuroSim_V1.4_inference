@@ -5,7 +5,7 @@ The `GetColumnPower` function in the SarADC (Successive Approximation Register A
 
 ## Location
 - **File**: `Inference_pytorch/NeuroSIM/SarADC.cpp`
-- **Lines**: 157-244
+- **Lines**: 157-271
 - **Header Declaration**: `Inference_pytorch/NeuroSIM/SarADC.h`, Line 66
 
 ## Function Signature
