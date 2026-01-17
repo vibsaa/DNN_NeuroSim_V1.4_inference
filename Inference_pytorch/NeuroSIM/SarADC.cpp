@@ -154,18 +154,38 @@ void SarADC::PrintProperty(const char* str) {
 }
 
 
+/**
+ * Calculates the energy consumption for reading a single column through the SAR ADC
+ * 
+ * @param columnRes: Column resistance in ohms
+ * @return Column_Energy: Energy consumed in Joules
+ * 
+ * This function uses empirical power models derived from Cadence circuit simulations
+ * for different technology nodes (130nm to 1nm) and device roadmaps (HP/LP).
+ * The power depends on: ADC resolution (levelOutput), column resistance, technology node,
+ * device roadmap, and operating temperature.
+ */
 double SarADC::GetColumnPower(double columnRes) {
-	double Column_Power = 0;
-	double Column_Energy = 0;
-	// in Cadence simulation, we fix Vread to 0.5V, with user-defined Vread (different from 0.5V)
-	// we should modify the equivalent columnRes
+	double Column_Power = 0;      // Instantaneous power in Watts
+	double Column_Energy = 0;     // Total energy in Joules
+	
+	// Adjust column resistance for voltage scaling
+	// Cadence simulations use fixed 0.5V read voltage
+	// Scale resistance to account for user-defined read voltage
 	columnRes *= 0.5/param->readVoltage;
-	if ((double) 1/columnRes == 0) { 
+	// Handle edge cases for column resistance
+	if ((double) 1/columnRes == 0) {
+		// Infinite resistance: assign minimal power (1 µW)
 		Column_Power = 1e-6;
 	} else if (columnRes == 0) {
+		// Zero resistance: no power consumption
 		Column_Power = 0;
 	} else {
-		if (param->deviceroadmap == 1) {  // HP
+		// Normal case: calculate power based on technology node and device roadmap
+		// Power formulas: Column_Power = (A*log2(levelOutput) + B)*1e-6 + C*exp(-D*log10(columnRes))
+		// where A, B, C, D are technology-specific constants
+		
+		if (param->deviceroadmap == 1) {  // High Performance (HP) roadmap
 			if (param->technode == 130) {
 				Column_Power = (6.4806*log2(levelOutput)+49.047)*1e-6;
 				Column_Power += 0.207452*exp(-2.367*log10(columnRes));
@@ -194,8 +214,8 @@ double SarADC::GetColumnPower(double columnRes) {
 				Column_Power = (0.2008*log2(levelOutput)+0.6823)*1e-6;
 				Column_Power += 0.040310*exp(-2.311*log10(columnRes));
 			}
-		} else {                         // LP
-		// 1.4 update: SAR ADC power project down to 1 nm node
+		} else {                         // Low Power (LP) roadmap
+		// 1.4 update: SAR ADC power projections extended down to 1nm node
 			if (param->technode == 130) {
 				Column_Power = (8.4483*log2(levelOutput)+65.243)*1e-6;
 				Column_Power += 0.169380*exp(-2.303*log10(columnRes));
@@ -238,7 +258,14 @@ double SarADC::GetColumnPower(double columnRes) {
 			}
 		}
 	}
+	
+	// Apply temperature compensation (linear approximation)
+	// Base temperature: 300K, coefficient: 1.3×10⁻³ per Kelvin
 	Column_Power *= (1+1.3e-3*(param->temp-300));
+	
+	// Calculate energy: Power × Conversion Time
+	// Conversion time = (log2(levelOutput)+1) ns (SAR ADC successive approximation cycles)
 	Column_Energy = Column_Power * (log2(levelOutput)+1)*1e-9;
+	
 	return Column_Energy;
 }
